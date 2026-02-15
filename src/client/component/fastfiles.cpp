@@ -38,6 +38,7 @@ namespace fastfiles
 		utils::hook::detour db_find_xasset_header_hook;
 		utils::hook::detour db_add_xasset_hook;
 		utils::hook::detour sys_createfile_hook;
+		utils::hook::detour asset_entry_hook;
 
 		void db_try_load_x_file_internal_stub(const char* zone_name, const unsigned int zone_flags,
 			const bool is_base_map, const bool was_paused, const int failure_mode)
@@ -93,6 +94,22 @@ namespace fastfiles
 					name);
 			}
 			
+			{
+				if (type == game::XAssetType::ASSET_TYPE_RAWFILE ||
+					type == game::XAssetType::ASSET_TYPE_STRINGTABLE)
+				{
+					const std::string override_asset_name = "override/"s + name;
+					if (result.rawfile)
+					{
+						const auto override_rawfile = db_find_xasset_header_hook.invoke<game::XAssetHeader>(type, override_asset_name.data(), 0);
+						if (override_rawfile.rawfile)
+						{
+							result.rawfile = override_rawfile.rawfile;
+						}
+					}
+				}
+			}
+			
 			return result;
 		}
 
@@ -106,6 +123,16 @@ namespace fastfiles
 			}
 
 			auto result = db_add_xasset_hook.invoke<game::XAssetHeader>(type, header_ptr);
+			return result;
+		}
+
+		__int64* asset_entry_stub(game::XAssetType type)
+		{
+			auto result = asset_entry_hook.invoke<__int64*>(type);
+
+			if (!result && type == game::ASSET_TYPE_STRINGTABLE)
+				result = asset_entry_hook.invoke<__int64*>(game::ASSET_TYPE_RAWFILE);
+
 			return result;
 		}
 
@@ -310,6 +337,7 @@ namespace fastfiles
 
 			db_find_xasset_header_hook.create(game::DB_FindXAssetHeader, db_find_xasset_header_stub);
 			db_add_xasset_hook.create(0x140A76520, db_add_xasset_stub);
+			asset_entry_hook.create(0x1403B6CE0, asset_entry_stub);
 
 			g_dump_scripts = game::Dvar_RegisterBool("g_dumpScripts", false, game::DVAR_FLAG_NONE, "Dump GSC scripts");
 
