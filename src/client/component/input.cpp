@@ -22,6 +22,10 @@ namespace input
 		
 		utils::hook::detour cl_mouse_move_hook;
 
+		utils::hook::detour cl_pause_hook;
+		utils::hook::detour cl_pause_hook2;
+		game::dvar_t* cl_pause_on_focus_lost = nullptr;
+
 		int key_get_binding_for_cmd_stub(const char* command);
 
 		void cl_char_event_stub(const int local_client_num, const int key)
@@ -211,6 +215,25 @@ namespace input
 
 			cl_execute_key_hook.invoke<void>(local_client_num, key, down, time);
 		}
+
+		void cl_pause_stub(unsigned int a1, char a2)
+		{
+			static const auto window = *reinterpret_cast<HWND*>(0x1477A02D0);
+
+			if (GetForegroundWindow() == window || cl_pause_on_focus_lost && cl_pause_on_focus_lost->current.enabled)
+				cl_pause_hook.invoke<void>(a1, a2);
+
+		}
+
+		char cl_pause_stub2(unsigned int a1, unsigned __int8 a2)
+		{
+			static const auto window = *reinterpret_cast<HWND*>(0x1477A02D0);
+
+			if (GetForegroundWindow() == window || cl_pause_on_focus_lost && cl_pause_on_focus_lost->current.enabled)
+				return cl_pause_hook2.invoke<char>(a1, a2);
+			
+			return 0;
+		}
 	}
 
 	class component final : public component_interface
@@ -241,6 +264,10 @@ namespace input
 
 			// execute custom binds
 			cl_execute_key_hook.create(0x14032A3B0, &cl_execute_key_stub);
+
+			cl_pause_hook.create(0x1409B3720, cl_pause_stub);
+			cl_pause_hook2.create(0x1403ABD10, cl_pause_stub2);
+			cl_pause_on_focus_lost = game::Dvar_RegisterBool("cl_pause_on_focus_lost", true, game::DVAR_FLAG_SAVED, "Whether the window losing focus should pause the game.");
 		}
 	};
 }
